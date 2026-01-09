@@ -2,6 +2,10 @@
 
 A Python toolkit for simulating yield curve movements and analyzing fixed income risk metrics. Supports parallel shifts, steepening, flattening, twists, and butterfly deformations with comprehensive duration, DV01, and convexity calculations.
 
+## Comprehensive Documentation and Visualizations
+
+This toolkit simulates yield curve movements and calculates comprehensive risk metrics for fixed income securities. The following visualizations and explanations demonstrate how various yield curve deformations function and their impact on bonds and portfolios.
+
 ## Features
 
 - **Yield Curve Modeling**
@@ -35,11 +39,288 @@ A Python toolkit for simulating yield curve movements and analyzing fixed income
   - Duration contribution analysis
   - Scenario P&L attribution
 
+### Visualizations and Interpretations
+
+#### 1. Base Yield Curve
+
+![Base Yield Curve](docs/images/01_base_curve.png)
+
+**What This Visualization Shows:**
+- The base yield curve displays yields across various maturities from 3 months to 30 years
+- Red points represent original market data
+- The blue line is the cubic spline interpolation between data points
+
+**Interpretation:**
+- The curve is nearly flat with a slightly inverted shape in the short end (5.25% at 3M → 4.00% at 5Y)
+- The long end rises slightly (4.00% at 5Y → 4.60% at 30Y)
+- The 2s10s spread is -0.25 bps, indicating a very flat curve
+- This shape suggests market expectations of stable or declining interest rates
+
+---
+
+#### 2. Parallel Shift
+
+![Parallel Shift](docs/images/02_parallel_shift.png)
+
+**What This Visualization Shows:**
+- Parallel shifts of the entire yield curve by various amounts (-50, -25, +25, +50 basis points)
+- All maturities are shifted by the same amount
+
+**Interpretation:**
+- Green (-50/-25 bps): Declining rates → Bond prices rise → Positive for bondholders
+- Orange/Red (+25/+50 bps): Rising rates → Bond prices fall → Negative for bondholders
+- This simulates central bank policy affecting all rates uniformly
+- Relevant for duration and DV01 calculations
+
+---
+
+#### 3. Steepening & Flattening
+
+![Steepening & Flattening](docs/images/03_steepening_flattening.png)
+
+**What This Visualization Shows:**
+- **Left (Steepening)**: Short rates decline, long rates rise → Curve steepens
+- **Right (Flattening)**: Short rates rise, long rates decline → Curve flattens
+
+**Steepening Interpretation:**
+- The yield curve steepens as the spread between short and long rates increases
+- Typical during economic recovery phases
+- Short-dated bonds benefit, long-dated bonds underperform
+- Banks profit (borrow short-term cheaply, lend long-term at higher rates)
+
+**Flattening Interpretation:**
+- The yield curve flattens as the spread decreases
+- May signal an impending recession
+- Long-dated bonds benefit relative to short-dated bonds
+- Typical when central banks raise rates (short end rises faster)
+
+---
+
+#### 4. Twist Deformations
+
+![Twist](docs/images/04_twist.png)
+
+**What This Visualization Shows:**
+- Independent movements of the short and long ends of the yield curve
+- Pivot point at 5 years (gray dashed line)
+- Various scenarios: short end ↓/↑ while long end ↑/↓
+
+**Interpretation:**
+- **Red (Short -20, Long +30)**: Most aggressive steepening → Short end falls sharply, long end rises sharply
+- **Green (Short +20, Long -30)**: Most aggressive flattening → Opposite movement
+- **Purple (Short -30, Long +50)**: Extreme steepening with very strong movements
+- Twist scenarios are realistic during mixed central bank signals or changes in inflation expectations
+
+---
+
+#### 5. Butterfly Spreads
+
+![Butterfly](docs/images/05_butterfly.png)
+
+**What This Visualization Shows:**
+- **Left (Positive Butterfly)**: Wings rise, belly falls → Curve becomes more convex
+- **Right (Negative Butterfly)**: Wings fall, belly rises → Curve becomes more concave
+
+**Positive Butterfly Interpretation:**
+- Short and long-term ends rise, intermediate maturities fall
+- The curve exhibits increased curvature
+- Intermediate maturity bonds (5-10Y) benefit relatively
+- Trading strategy: Long intermediate maturities, short short and long maturities
+
+**Negative Butterfly Interpretation:**
+- Intermediate maturities rise, wings fall
+- The curve becomes smoother
+- Short and long-term bonds benefit
+- Trading strategy: Short intermediate maturities, long short and long maturities
+
+---
+
+#### 6. Bear/Bull Scenarios
+
+![Bear Bull Scenarios](docs/images/06_bear_bull_scenarios.png)
+
+**What This Visualization Shows:**
+Four macroeconomic scenarios:
+
+**Bear Steepener (top left):**
+- Long end rises (+40 bps)
+- Short end remains stable
+- **Interpretation**: Rising inflation expectations, overheating economy, long-term bonds are sold off
+
+**Bull Steepener (top right):**
+- Short end falls (-50 bps)
+- Long end remains stable
+- **Interpretation**: Central bank cuts rates (recession concerns), but long rates remain stable
+
+**Bear Flattener (bottom left):**
+- Short end rises (+30 bps)
+- Long end remains stable
+- **Interpretation**: Central bank aggressively raises rates to combat inflation
+
+**Bull Flattener (bottom right):**
+- Long end falls (-30 bps)
+- Short end remains stable
+- **Interpretation**: Recession expectations, flight-to-quality into long-term government bonds
+
+---
+
+#### 7. Key Rate Durations
+
+![Key Rate Durations](docs/images/07_key_rate_durations.png)
+
+**What This Visualization Shows:**
+- Sensitivity of different bonds to rate changes at specific maturity points
+- Four different bonds: 2Y, 5Y, 10Y, 30Y
+
+**Interpretation:**
+- **2Y Bond (blue)**: Highest sensitivity at 2Y rates, minimal sensitivity at long maturities
+- **5Y Bond (green)**: Broadly distributed, maximum at 5Y
+- **10Y Bond (red)**: Very high concentration at 10Y (bar ~7.0), dominant factor
+- **30Y Bond (purple)**: Would show extreme sensitivity at 30Y (not fully visible due to scaling)
+
+**Practical Significance:**
+- Identifies which parts of the yield curve present the greatest risk for a position
+- Critical for hedging strategies: allows targeted hedges at relevant key rates
+- Portfolio managers use this for constructing immunization strategies
+
+---
+
+#### 8. Scenario Analysis
+
+![Scenario Analysis](docs/images/08_scenario_analysis.png)
+
+**What This Visualization Shows:**
+- Price changes for a 10-year bond (4% coupon) under various rate scenarios
+- Left: Absolute price change in dollars
+- Right: Percentage price change
+
+**Scenario Interpretation:**
+- **Parallel -50 bps** (green): Largest gain (~+$20.55, +2.1%) → Rates fall sharply
+- **Parallel -25 bps** (green): Moderate gain → Rates fall moderately
+- **Parallel +25 bps** (red): Moderate loss (~-$20.08, -2.05%) → Rates rise moderately
+- **Parallel +50 bps** (red): Larger loss → Rates rise sharply
+- **Steepening** (red): Loss (~-$34, -3.48%) → Long rates rise sharply, hits 10Y bond hard
+- **Flattening** (green): Gain (~+$35.74, +3.66%) → Long rates fall, very positive for 10Y bond
+- **Butterfly** (red): Moderate loss (~-$16.48, -1.69%) → Intermediate maturities suffer
+
+**Practical Significance:**
+- Demonstrates asymmetric risk: Flattening offers more upside than steepening downside
+- Critical for risk management and Value-at-Risk calculations
+- Guides hedging decisions for specific positions
+
+---
+
+#### 9. Duration and Convexity by Maturity
+
+![Duration & Convexity](docs/images/09_duration_convexity.png)
+
+**What This Visualization Shows:**
+Three key risk metrics across different maturities:
+
+**Modified Duration (left):**
+- Increases from ~1 year (1Y bond) to ~15 years (30Y bond)
+- Non-linear growth: flattens at longer maturities
+- **Interpretation**: Duration measures percentage price change for 1% rate change
+  - 10Y Bond: ~8.14 duration → At +1% rates, price falls ~8.14%
+  - 30Y Bond: ~15 duration → At +1% rates, price falls ~15%
+
+**Convexity (center):**
+- Rises exponentially from ~5 (1Y) to ~350 (30Y)
+- Strongly accelerated growth at long maturities
+- **Interpretation**: Convexity measures the curvature of the price-yield relationship
+  - Positive convexity is advantageous: prices rise more when rates fall than they decline when rates rise
+  - Higher convexity provides better asymmetric payoff structure
+
+**DV01 (right):**
+- Dollar Value of 01 Basis Point
+- Increases from ~$0.10 (1Y) to ~$1.50 (30Y)
+- **Interpretation**: Direct dollar loss from 1 basis point rate increase
+  - 10Y Bond: ~$0.81 DV01 → At +1bp, the $1000 bond loses $0.81
+  - 30Y Bond: ~$1.50 DV01 → Higher absolute risk
+
+**Practical Significance:**
+- Portfolio managers use these metrics for risk control
+- Long bonds carry higher interest rate risk but also higher convexity benefits
+- Trade-off between yield pickup and interest rate risk
+
+---
+
+#### 10. Portfolio Analysis
+
+![Portfolio Analysis](docs/images/10_portfolio_analysis.png)
+
+**What This Visualization Shows:**
+A portfolio with four positions (Total value ~$504K):
+- 100x 2Y Bonds (3.5% coupon)
+- 200x 5Y Bonds (4.0% coupon)
+- 150x 10Y Bonds (4.5% coupon)
+- 50x 30Y Bonds (5.0% coupon)
+
+**Left - Duration Contribution:**
+- **2Y Bond**: 0.37 duration (5.9% of total risk) → Smallest contribution
+- **5Y Bond**: 1.78 duration (28.4%) → Second largest contribution
+- **10Y Bond**: 2.43 duration (38.8%) → Largest risk contribution despite moderate weighting
+- **30Y Bond**: 1.68 duration (26.9%) → High duration but low quantity
+
+**Interpretation:**
+- The 10Y position dominates portfolio interest rate risk
+- Despite lower quantity than 5Y bonds, 10Y has more than double the duration contribution
+- Portfolio is "bullet"-shaped, centered around 10Y
+
+**Right - Scenario P&L:**
+Various rate scenarios and their portfolio impact:
+- **Parallel +50** (red): ~-$10.7K loss → Rising rates damage portfolio
+- **Parallel -50** (green): ~+$10.9K gain → Falling rates benefit portfolio
+- **Steepening** (red): ~-$7.7K loss → Long end rises, severely impacts 10Y and 30Y positions
+- **Flattening** (green): ~+$8.0K gain → Long end falls, benefits 10Y and 30Y positions
+- **Bear Steep** (red): ~-$3.7K loss → Moderate loss from rising long rates
+- **Bull Flat** (green): ~+$2.7K gain → Moderate gain from falling long rates
+
+**Interpretation:**
+- Portfolio is long-positioned (benefits from falling rates)
+- Asymmetric profile: Flattening offers more upside than steepening downside
+- Steepening is the most dangerous scenario after parallel rate increases
+- Portfolio would benefit from a recession (bull flattening) environment
+
+---
+
+## Summary: What Does the Script Do?
+
+The `basic_usage.py` script demonstrates the core functionality of the Yield Curve Simulator:
+
+1. **Yield Curve Modeling**: Creates realistic yield curves with cubic spline interpolation
+2. **Deformation Scenarios**: Simulates 7 different types of yield curve movements
+3. **Individual Security Risk Metrics**: Calculates Duration, Convexity, DV01, and Key Rate Durations for bonds
+4. **Scenario Analysis**: Evaluates price changes under various rate scenarios
+5. **Portfolio Risk**: Aggregates risk metrics across multiple positions and calculates scenario P&L
+6. **Value-at-Risk**: Computes VaR and Expected Shortfall based on volatility assumptions
+
+### Primary Use Cases:
+
+- **Risk Management**: Quantification of interest rate risk in bond portfolios
+- **Trading**: Evaluation of curve trading strategies (steepeners, flatteners, butterflies)
+- **Hedging**: Identification of primary risk sources through Key Rate Durations
+- **Stress Testing**: Simulation of extreme rate scenarios and their portfolio impact
+- **Portfolio Construction**: Optimization of duration and convexity profiles
+
+The toolkit is particularly valuable for fixed income portfolio managers, risk managers, and traders who require deep understanding of yield curve dynamics and their impact on bond portfolios.
+
+---
+
 ## Installation
 
 ```bash
 pip install -r requirements.txt
 ```
+
+## Generating Visualizations
+
+```bash
+cd examples
+python visualize_curves.py
+```
+
+Visualizations are saved to `docs/images/` directory.
 
 ## Quick Start
 
