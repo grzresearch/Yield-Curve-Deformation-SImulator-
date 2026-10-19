@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .curve import YieldCurve
+from .policy import PolicyPath, policy_curve_shift
 
 
 class DeformationType(Enum):
@@ -16,6 +17,9 @@ class DeformationType(Enum):
     BULL_STEEPENER = "bull_steepener"
     BEAR_FLATTENER = "bear_flattener"
     BULL_FLATTENER = "bull_flattener"
+    CUSTOM = "custom"
+    PCA = "pca"
+    POLICY = "policy"
 
 
 @dataclass
@@ -40,21 +44,31 @@ class CurveDeformer:
     def __init__(self, curve: YieldCurve):
         self.base_curve = curve
 
-    def parallel_shift(self, shift_bps: float) -> DeformationResult:
-        new_rates = self.base_curve.rates + shift_bps / 100
+    def _apply(
+        self,
+        shifts: np.ndarray,
+        deformation_type: DeformationType,
+        parameters: Dict
+    ) -> DeformationResult:
+        new_rates = self.base_curve.rates + shifts
         deformed = YieldCurve(
             self.base_curve.tenors.copy(),
             new_rates,
-            interpolation=self.base_curve.interpolation
+            interpolation=self.base_curve.interpolation,
+            curve_date=self.base_curve.curve_date
         )
 
         return DeformationResult(
             original_curve=self.base_curve,
             deformed_curve=deformed,
-            deformation_type=DeformationType.PARALLEL_SHIFT,
-            parameters={"shift_bps": shift_bps},
+            deformation_type=deformation_type,
+            parameters=parameters,
             rate_changes=new_rates - self.base_curve.rates
         )
+
+    def parallel_shift(self, shift_bps: float) -> DeformationResult:
+        shifts = np.full_like(self.base_curve.tenors, shift_bps / 100, dtype=float)
+        return self._apply(shifts, DeformationType.PARALLEL_SHIFT, {"shift_bps": shift_bps})
 
     def steepening(
         self,
@@ -66,26 +80,12 @@ class CurveDeformer:
         shifts = self._calculate_tilt_shifts(
             magnitude_bps, pivot_tenor, short_tenor, long_tenor, steepen=True
         )
-        new_rates = self.base_curve.rates + shifts
-
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
-
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.STEEPENING,
-            parameters={
-                "magnitude_bps": magnitude_bps,
-                "pivot_tenor": pivot_tenor,
-                "short_tenor": short_tenor,
-                "long_tenor": long_tenor
-            },
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.STEEPENING, {
+            "magnitude_bps": magnitude_bps,
+            "pivot_tenor": pivot_tenor,
+            "short_tenor": short_tenor,
+            "long_tenor": long_tenor
+        })
 
     def flattening(
         self,
@@ -97,26 +97,12 @@ class CurveDeformer:
         shifts = self._calculate_tilt_shifts(
             magnitude_bps, pivot_tenor, short_tenor, long_tenor, steepen=False
         )
-        new_rates = self.base_curve.rates + shifts
-
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
-
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.FLATTENING,
-            parameters={
-                "magnitude_bps": magnitude_bps,
-                "pivot_tenor": pivot_tenor,
-                "short_tenor": short_tenor,
-                "long_tenor": long_tenor
-            },
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.FLATTENING, {
+            "magnitude_bps": magnitude_bps,
+            "pivot_tenor": pivot_tenor,
+            "short_tenor": short_tenor,
+            "long_tenor": long_tenor
+        })
 
     def _calculate_tilt_shifts(
         self,
@@ -164,25 +150,11 @@ class CurveDeformer:
                 weight = (t - pivot_tenor) / (tenors[-1] - pivot_tenor)
                 shifts[i] = (long_shift_bps * weight) / 100
 
-        new_rates = self.base_curve.rates + shifts
-
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
-
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.TWIST,
-            parameters={
-                "short_shift_bps": short_shift_bps,
-                "long_shift_bps": long_shift_bps,
-                "pivot_tenor": pivot_tenor
-            },
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.TWIST, {
+            "short_shift_bps": short_shift_bps,
+            "long_shift_bps": long_shift_bps,
+            "pivot_tenor": pivot_tenor
+        })
 
     def butterfly(
         self,
@@ -209,27 +181,13 @@ class CurveDeformer:
                 decay = np.exp(-(t - long_tenor) / 5)
                 shifts[i] = wings_shift_bps / 100 * decay
 
-        new_rates = self.base_curve.rates + shifts
-
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
-
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.BUTTERFLY,
-            parameters={
-                "wings_shift_bps": wings_shift_bps,
-                "body_shift_bps": body_shift_bps,
-                "short_tenor": short_tenor,
-                "mid_tenor": mid_tenor,
-                "long_tenor": long_tenor
-            },
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.BUTTERFLY, {
+            "wings_shift_bps": wings_shift_bps,
+            "body_shift_bps": body_shift_bps,
+            "short_tenor": short_tenor,
+            "mid_tenor": mid_tenor,
+            "long_tenor": long_tenor
+        })
 
     def positive_butterfly(self, magnitude_bps: float = 25) -> DeformationResult:
         return self.butterfly(
@@ -256,24 +214,10 @@ class CurveDeformer:
                 weight = (t - pivot_tenor) / (tenors[-1] - pivot_tenor)
                 shifts[i] = long_end_shift_bps / 100 * weight
 
-        new_rates = self.base_curve.rates + shifts
-
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
-
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.BEAR_STEEPENER,
-            parameters={
-                "long_end_shift_bps": long_end_shift_bps,
-                "pivot_tenor": pivot_tenor
-            },
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.BEAR_STEEPENER, {
+            "long_end_shift_bps": long_end_shift_bps,
+            "pivot_tenor": pivot_tenor
+        })
 
     def bull_steepener(
         self,
@@ -288,24 +232,10 @@ class CurveDeformer:
                 weight = (pivot_tenor - t) / pivot_tenor
                 shifts[i] = -abs(short_end_shift_bps) / 100 * weight
 
-        new_rates = self.base_curve.rates + shifts
-
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
-
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.BULL_STEEPENER,
-            parameters={
-                "short_end_shift_bps": short_end_shift_bps,
-                "pivot_tenor": pivot_tenor
-            },
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.BULL_STEEPENER, {
+            "short_end_shift_bps": short_end_shift_bps,
+            "pivot_tenor": pivot_tenor
+        })
 
     def bear_flattener(
         self,
@@ -320,24 +250,10 @@ class CurveDeformer:
                 weight = (pivot_tenor - t) / pivot_tenor
                 shifts[i] = abs(short_end_shift_bps) / 100 * weight
 
-        new_rates = self.base_curve.rates + shifts
-
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
-
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.BEAR_FLATTENER,
-            parameters={
-                "short_end_shift_bps": short_end_shift_bps,
-                "pivot_tenor": pivot_tenor
-            },
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.BEAR_FLATTENER, {
+            "short_end_shift_bps": short_end_shift_bps,
+            "pivot_tenor": pivot_tenor
+        })
 
     def bull_flattener(
         self,
@@ -352,48 +268,21 @@ class CurveDeformer:
                 weight = (t - pivot_tenor) / (tenors[-1] - pivot_tenor)
                 shifts[i] = -abs(long_end_shift_bps) / 100 * weight
 
-        new_rates = self.base_curve.rates + shifts
-
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
-
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.BULL_FLATTENER,
-            parameters={
-                "long_end_shift_bps": long_end_shift_bps,
-                "pivot_tenor": pivot_tenor
-            },
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.BULL_FLATTENER, {
+            "long_end_shift_bps": long_end_shift_bps,
+            "pivot_tenor": pivot_tenor
+        })
 
     def custom_deformation(
         self,
         tenor_shifts: Dict[float, float]
     ) -> DeformationResult:
-        shift_tenors = np.array(sorted(tenor_shifts.keys()))
-        shift_values = np.array([tenor_shifts[t] for t in shift_tenors]) / 100
+        shift_tenors = np.array(sorted(float(t) for t in tenor_shifts.keys()))
+        lookup = {float(t): v for t, v in tenor_shifts.items()}
+        shift_values = np.array([lookup[t] for t in shift_tenors]) / 100
 
         shifts = np.interp(self.base_curve.tenors, shift_tenors, shift_values)
-        new_rates = self.base_curve.rates + shifts
-
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
-
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.PARALLEL_SHIFT,
-            parameters={"tenor_shifts": tenor_shifts},
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.CUSTOM, {"tenor_shifts": tenor_shifts})
 
     def pca_deformation(
         self,
@@ -420,57 +309,62 @@ class CurveDeformer:
             curvature_shift / 100 * curvature_component
         )
 
-        new_rates = self.base_curve.rates + shifts
+        return self._apply(shifts, DeformationType.PCA, {
+            "level_shift": level_shift,
+            "slope_shift": slope_shift,
+            "curvature_shift": curvature_shift
+        })
 
-        deformed = YieldCurve(
-            self.base_curve.tenors.copy(),
-            new_rates,
-            interpolation=self.base_curve.interpolation
-        )
+    def policy_scenario(
+        self,
+        scenario: PolicyPath,
+        baseline: PolicyPath,
+        half_life_years: Optional[float] = 2.0,
+        term_premium_bps: float = 0.0
+    ) -> DeformationResult:
+        """Shift the curve by the surprise of a policy-rate path versus the
+        path the market already prices (see ``policy.policy_curve_shift``)."""
+        shifts = policy_curve_shift(
+            self.base_curve.tenors, scenario, baseline,
+            half_life_years=half_life_years,
+            term_premium_bps=term_premium_bps
+        ) / 100
 
-        return DeformationResult(
-            original_curve=self.base_curve,
-            deformed_curve=deformed,
-            deformation_type=DeformationType.PARALLEL_SHIFT,
-            parameters={
-                "level_shift": level_shift,
-                "slope_shift": slope_shift,
-                "curvature_shift": curvature_shift
-            },
-            rate_changes=shifts
-        )
+        return self._apply(shifts, DeformationType.POLICY, {
+            "scenario_levels": list(scenario.levels),
+            "baseline_levels": list(baseline.levels),
+            "half_life_years": half_life_years,
+            "term_premium_bps": term_premium_bps
+        })
 
     def scenario_analysis(
         self,
         scenarios: List[Dict]
     ) -> List[DeformationResult]:
+        dispatch = {
+            "parallel_shift": self.parallel_shift,
+            "steepening": self.steepening,
+            "flattening": self.flattening,
+            "twist": self.twist,
+            "butterfly": self.butterfly,
+            "positive_butterfly": self.positive_butterfly,
+            "negative_butterfly": self.negative_butterfly,
+            "bear_steepener": self.bear_steepener,
+            "bull_steepener": self.bull_steepener,
+            "bear_flattener": self.bear_flattener,
+            "bull_flattener": self.bull_flattener,
+            "custom": self.custom_deformation,
+            "pca": self.pca_deformation,
+        }
         results = []
 
         for scenario in scenarios:
             deform_type = scenario.get("type", "parallel_shift")
             params = {k: v for k, v in scenario.items() if k != "type"}
 
-            if deform_type == "parallel_shift":
-                result = self.parallel_shift(**params)
-            elif deform_type == "steepening":
-                result = self.steepening(**params)
-            elif deform_type == "flattening":
-                result = self.flattening(**params)
-            elif deform_type == "twist":
-                result = self.twist(**params)
-            elif deform_type == "butterfly":
-                result = self.butterfly(**params)
-            elif deform_type == "bear_steepener":
-                result = self.bear_steepener(**params)
-            elif deform_type == "bull_steepener":
-                result = self.bull_steepener(**params)
-            elif deform_type == "bear_flattener":
-                result = self.bear_flattener(**params)
-            elif deform_type == "bull_flattener":
-                result = self.bull_flattener(**params)
-            else:
+            if deform_type not in dispatch:
                 raise ValueError(f"Unknown deformation type: {deform_type}")
 
-            results.append(result)
+            results.append(dispatch[deform_type](**params))
 
         return results

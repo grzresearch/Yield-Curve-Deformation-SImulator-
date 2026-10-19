@@ -68,10 +68,13 @@ class YieldCurve:
     def par_rate(self, maturity: float, frequency: int = 2) -> float:
         dt = 1 / frequency
         times = np.arange(dt, maturity + dt/2, dt)
+        if len(times) == 0:
+            times = np.array([maturity])
         times[-1] = maturity
+        accruals = np.diff(times, prepend=0.0)
 
         dfs = self.discount_factors(times)
-        annuity = np.sum(dfs) * dt
+        annuity = np.sum(dfs * accruals)
         df_mat = dfs[-1]
 
         return (1 - df_mat) / annuity * 100
@@ -126,6 +129,79 @@ class YieldCurve:
         )
 
     @classmethod
+    def from_par_yields(
+        cls,
+        tenors: np.ndarray,
+        par_yields: np.ndarray,
+        frequency: int = 2,
+        interpolation: str = "cubic_spline",
+        curve_date: Optional[str] = None,
+        tolerance: float = 1e-10,
+        max_iterations: int = 100
+    ) -> "YieldCurve":
+        """Bootstrap continuously compounded zero rates from par yields.
+
+        The result reprices its inputs: under the curve's own interpolation,
+        ``par_rate(t)`` equals the quoted par yield at every tenor. Tenors up
+        to one coupon period are single-payment money-market instruments,
+        1 / (1 + y * t), which fixes their zero rate in closed form. Longer
+        tenors start from a classic coupon-grid bootstrap (par yields
+        interpolated linearly) and are refined by Newton steps until every
+        quoted par bond prices exactly at par.
+        """
+        order = np.argsort(tenors)
+        tenors = np.asarray(tenors, dtype=float)[order]
+        par = np.asarray(par_yields, dtype=float)[order]
+        period = 1 / frequency
+
+        zero = np.empty_like(tenors)
+        money_market = tenors <= period + 1e-12
+        zero[money_market] = (
+            np.log1p(par[money_market] / 100 * tenors[money_market]) / tenors[money_market] * 100
+        )
+
+        if np.any(~money_market):
+            n_periods = int(np.ceil(tenors[-1] * frequency - 1e-9))
+            grid = np.arange(1, n_periods + 1) * period
+            coupons = np.interp(grid, tenors, par / 100) / frequency
+
+            dfs = np.empty(n_periods)
+            annuity = 0.0
+            for i, c in enumerate(coupons):
+                dfs[i] = (1 - c * annuity) / (1 + c)
+                annuity += dfs[i]
+
+            long_tenors = tenors[~money_market]
+            log_dfs = np.interp(long_tenors, grid, np.log(dfs))
+            zero[~money_market] = -log_dfs / long_tenors * 100
+
+        curve = cls(tenors, zero, interpolation=interpolation, curve_date=curve_date)
+        for _ in range(max_iterations):
+            errors = np.array([curve.par_rate(t, frequency) for t in tenors]) - par
+            if np.max(np.abs(errors)) < tolerance:
+                break
+            zero = zero - errors / curve._par_rate_sensitivity(tenors, frequency)
+            curve = cls(tenors, zero, interpolation=interpolation, curve_date=curve_date)
+
+        return curve
+
+    def _par_rate_sensitivity(self, tenors: np.ndarray, frequency: int) -> np.ndarray:
+        """d par_rate(t) / d zero(t), holding the rest of the curve fixed."""
+        dt = 1 / frequency
+        sensitivity = np.empty(len(tenors))
+        for i, maturity in enumerate(tenors):
+            times = np.arange(dt, maturity + dt/2, dt)
+            if len(times) == 0:
+                times = np.array([maturity])
+            times[-1] = maturity
+            accruals = np.diff(times, prepend=0.0)
+            dfs = self.discount_factors(times)
+            annuity = np.sum(dfs * accruals)
+            par = (1 - dfs[-1]) / annuity
+            sensitivity[i] = maturity * dfs[-1] * (1 + par * accruals[-1]) / annuity
+        return sensitivity
+
+    @classmethod
     def flat_curve(cls, rate: float, tenors: Optional[np.ndarray] = None) -> "YieldCurve":
         if tenors is None:
             tenors = np.array(cls.STANDARD_TENORS)
@@ -157,4 +233,4 @@ class YieldCurve:
         return cls.normal_curve(short_rate, long_rate, tenors)
 
     def __repr__(self) -> str:
-        return f"YieldCurve(points={len(self.tenors)}, slope_2_10={self.slope():.2f}bps)"
+        return f"YieldCurve(points={len(self.tenors)}, slope_2_10={self.slope() * 100:.1f}bps)"

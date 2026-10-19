@@ -28,8 +28,8 @@ def main():
     for t, r in zip(curve.tenors, curve.rates):
         print(f"  {t:5.2f}Y: {r:.3f}%")
 
-    print(f"\n  2s10s Slope: {curve.slope():.2f} bps")
-    print(f"  2s5s10s Curvature: {curve.curvature():.2f} bps")
+    print(f"\n  2s10s Slope: {curve.slope() * 100:.1f} bps")
+    print(f"  2s5s10s Curvature: {curve.curvature() * 100:.1f} bps")
 
     print_separator("CURVE DEFORMATIONS")
 
@@ -44,16 +44,16 @@ def main():
     print("\n2. STEEPENING (50 bps magnitude)")
     print("-" * 40)
     result = deformer.steepening(50)
-    print(f"  Original 2s10s: {curve.slope():.2f} bps")
-    print(f"  New 2s10s: {result.deformed_curve.slope():.2f} bps")
-    print(f"  Slope change: {result.slope_change:.2f} bps")
+    print(f"  Original 2s10s: {curve.slope() * 100:.1f} bps")
+    print(f"  New 2s10s: {result.deformed_curve.slope() * 100:.1f} bps")
+    print(f"  Slope change: {result.slope_change * 100:.1f} bps")
 
     print("\n3. FLATTENING (50 bps magnitude)")
     print("-" * 40)
     result = deformer.flattening(50)
-    print(f"  Original 2s10s: {curve.slope():.2f} bps")
-    print(f"  New 2s10s: {result.deformed_curve.slope():.2f} bps")
-    print(f"  Slope change: {result.slope_change:.2f} bps")
+    print(f"  Original 2s10s: {curve.slope() * 100:.1f} bps")
+    print(f"  New 2s10s: {result.deformed_curve.slope() * 100:.1f} bps")
+    print(f"  Slope change: {result.slope_change * 100:.1f} bps")
 
     print("\n4. TWIST (short -20 bps, long +30 bps)")
     print("-" * 40)
@@ -65,14 +65,14 @@ def main():
     print("\n5. BUTTERFLY (wings +25 bps, body -25 bps)")
     print("-" * 40)
     result = deformer.positive_butterfly(25)
-    print(f"  Original curvature: {curve.curvature():.2f} bps")
-    print(f"  New curvature: {result.deformed_curve.curvature():.2f} bps")
-    print(f"  Curvature change: {result.curvature_change:.2f} bps")
+    print(f"  Original curvature: {curve.curvature() * 100:.1f} bps")
+    print(f"  New curvature: {result.deformed_curve.curvature() * 100:.1f} bps")
+    print(f"  Curvature change: {result.curvature_change * 100:.1f} bps")
 
     print("\n6. BEAR STEEPENER (+40 bps long end)")
     print("-" * 40)
     result = deformer.bear_steepener(40)
-    print(f"  Slope change: {result.slope_change:.2f} bps")
+    print(f"  Slope change: {result.slope_change * 100:.1f} bps")
     print("  Rate changes:")
     for t, change in zip(curve.tenors, result.rate_changes * 100):
         if change != 0:
@@ -81,7 +81,7 @@ def main():
     print("\n7. BULL FLATTENER (-30 bps long end)")
     print("-" * 40)
     result = deformer.bull_flattener(30)
-    print(f"  Slope change: {result.slope_change:.2f} bps")
+    print(f"  Slope change: {result.slope_change * 100:.1f} bps")
 
     print_separator("BOND RISK METRICS")
 
