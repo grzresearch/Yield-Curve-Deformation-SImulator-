@@ -4,7 +4,7 @@ A Python toolkit for simulating yield curve movements and analyzing fixed income
 
 ## Live Dashboard
 
-**https://gelatotrade.github.io/Yield-Curve-Deformation-SImulator-/**
+**https://grzresearch.github.io/Yield-Curve-Deformation-SImulator-/**
 
 Everything this toolkit does in Python also runs as an interactive web dashboard, fed with live market data and usable without installing anything:
 

@@ -37,7 +37,7 @@ SCHEMA_VERSION = 1
 # which then expects cookies; every source accepts this one.
 USER_AGENT = (
     "Mozilla/5.0 (compatible; yield-curve-dashboard/1.0; "
-    "+https://github.com/gelatotrade/Yield-Curve-Deformation-SImulator-)"
+    "+https://github.com/grzresearch/Yield-Curve-Deformation-SImulator-)"
 )
 
 TREASURY_URL = (

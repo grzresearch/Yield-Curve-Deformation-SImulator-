@@ -171,7 +171,7 @@
     {/if}
     <footer class="muted">
       {app.t('footerNote')} ·
-      <a href="https://github.com/gelatotrade/Yield-Curve-Deformation-SImulator-" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/grzresearch/Yield-Curve-Deformation-SImulator-" target="_blank" rel="noopener">GitHub</a>
     </footer>
   </main>
 </div>
