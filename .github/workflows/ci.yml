@@ -1,0 +1,53 @@
+name: CI
+
+# The Python toolkit is the reference; the dashboard is a TypeScript port of it.
+# This job regenerates the golden values with Python and checks the port against them.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Python toolkit dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Python tests
+        run: python -m pytest -q tests
+
+      - name: Regenerate parity fixtures from the Python reference
+        run: python scripts/generate_parity_fixtures.py web/tests/fixtures/parity.json
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dashboard dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Type check
+        working-directory: web
+        run: npm run check
+
+      - name: Parity and unit tests
+        working-directory: web
+        run: npm test
+
+      - name: Build
+        working-directory: web
+        run: npm run build

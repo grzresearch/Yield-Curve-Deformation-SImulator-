@@ -2,6 +2,94 @@
 
 A Python toolkit for simulating yield curve movements and analyzing fixed income risk metrics. Supports parallel shifts, steepening, flattening, twists, and butterfly deformations with comprehensive duration, DV01, and convexity calculations.
 
+## Live Dashboard
+
+**https://gelatotrade.github.io/Yield-Curve-Deformation-SImulator-/**
+
+Everything this toolkit does in Python also runs as an interactive web dashboard, fed with live market data and usable without installing anything:
+
+| Page | What it does |
+|---|---|
+| **Market** | Treasury curve vs. 1W/1M/3M/1Y ago, change by tenor, EFFR and target range, 2s10s history, US vs. euro area AAA curve, odds for the next FOMC meeting |
+| **Curve analytics** | Zero, par and instantaneous-forward curves, discount factors, all three interpolation methods side by side, forward/par/discount calculator, editable custom curve |
+| **FedWatch** | Target-range probabilities for every upcoming FOMC meeting, the full probability matrix, the priced policy path and the underlying fed funds futures |
+| **Fed scenario** | Pick a policy path (as priced, on hold, most likely, ±25 bp per meeting, emergency cut, or meeting by meeting) and see the curve, your bond and your portfolio react |
+| **Curve shocks** | Every deformation in `CurveDeformer` with live sliders, plus the interpretation from this README |
+| **Bond** | Price, YTM, Macaulay/modified/effective duration, DV01, convexity, exact repricing vs. duration and convexity approximations, cash flows, key rate and partial durations, VaR and expected shortfall (volatility defaults to the realised 1-year volatility) |
+| **Portfolio** | Positions entered or pasted from Excel, aggregate metrics, duration contributions, portfolio key rate durations, scenario P&L |
+| **Stress test** | An editable scenario matrix for the bond and the portfolio, exportable to Excel |
+| **Data & API** | Source status, CSV downloads and a ready-made Power Query script so Excel can refresh the data itself |
+
+Every chart has a table view and CSV/clipboard export in the reader's Excel locale. The interface is available in German and English, in light and dark mode, and settings can be shared as a link.
+
+### Data sources
+
+| Data | Source | Refresh |
+|---|---|---|
+| U.S. Treasury par yield curve (1M–30Y, two years of history) | U.S. Department of the Treasury | hourly on weekdays |
+| Euro area AAA government spot curve | European Central Bank Data Portal | hourly on weekdays |
+| Effective fed funds rate and target range | Federal Reserve Bank of New York | hourly on weekdays |
+| FOMC meeting calendar | Federal Reserve Board | hourly on weekdays |
+| 30-Day Fed Funds futures (ZQ, CBOT) | Delayed settlement prices via Yahoo Finance | hourly on weekdays |
+
+A scheduled GitHub Actions workflow fetches the data, builds the site and publishes it to GitHub Pages. If a source fails, its last good value is carried forward from the live site and flagged as stale; the dashboard never goes dark because of one endpoint.
+
+### FedWatch methodology
+
+CME Group's Data Terms of Use prohibit automated access to cmegroup.com, so the dashboard does not scrape the FedWatch page. It re-implements the methodology CME publishes for the tool, on the same instrument. A ZQ contract settles to the average effective fed funds rate of its delivery month; in a meeting month that average splits into the rate before and after the decision, a meeting-free month pins the rate directly, and the chained path gives the expected change at each meeting. That change is split between the two nearest 25 bp steps and compounded meeting by meeting into a probability tree. Numbers can differ slightly from the CME page because of timing and price source.
+
+### Fed scenario model
+
+The market already prices the FedWatch path, so only the *surprise* moves the curve. Under the expectations hypothesis a continuously compounded zero rate is the average expected overnight rate over its life plus a term premium:
+
+```
+dz(tau) = 1/tau * integral_0^tau delta(s) ds  +  TP * w(tau)
+delta(s) = r_scenario(s) - r_market(s),   decaying with half-life h after the final modelled meeting
+```
+
+`w(tau)` is the complement of the Nelson-Siegel slope loading, scaled to 1 at 10 years. With "as priced" the curve does not move at all; with "Fed on hold" while hikes are priced, the front end rallies most and the effect fades along the curve.
+
+### Architecture
+
+```mermaid
+flowchart LR
+  subgraph Python["Python toolkit (reference)"]
+    YC[yield_curve]
+    FETCH[scripts/fetch_market_data.py]
+    FEEDS[scripts/export_excel_feeds.py]
+    FIX[scripts/generate_parity_fixtures.py]
+  end
+  subgraph Web["web/ (Svelte + TypeScript)"]
+    CORE[src/lib/core: port of yield_curve]
+    UI[Dashboard]
+  end
+  APIs[(Treasury · ECB · NY Fed · Fed · CBOT)] --> FETCH --> JSON[market.json] --> UI
+  JSON --> FEEDS --> CSV[CSV feeds for Excel]
+  YC --> FIX --> GOLD[parity.json] --> TEST{{vitest parity tests}}
+  CORE --> TEST
+  CORE --> UI
+```
+
+All calculations run in the browser on `web/src/lib/core`, a TypeScript port of `yield_curve`. It reproduces scipy's not-a-knot cubic spline, PCHIP and `np.interp` exactly, so it returns the same numbers as Python. CI regenerates over 7,000 reference values with the Python toolkit and checks the port against them (tolerance 1e-9, numerical derivatives such as key rate durations 1e-7).
+
+The site sets no cookies, has no tracking and loads no external fonts or CDNs. Portfolio and scenario inputs stay in the browser's local storage.
+
+### Running the dashboard locally
+
+```bash
+python scripts/fetch_market_data.py --out web/public/data/market.json   # optional: refresh data
+python scripts/export_excel_feeds.py web/public/data/market.json
+cd web
+npm install
+npm run dev        # http://localhost:5173
+npm test           # parity tests against the Python toolkit
+npm run build      # static site in web/dist
+```
+
+### Deployment
+
+`.github/workflows/deploy.yml` publishes the site on every push to `main`, hourly on weekdays and on demand. In the repository settings, **Settings → Pages → Build and deployment → Source** must be set to **GitHub Actions**.
+
 ## Comprehensive Documentation and Visualizations
 
 This toolkit simulates yield curve movements and calculates comprehensive risk metrics for fixed income securities. The following visualizations and explanations demonstrate how various yield curve deformations function and their impact on bonds and portfolios.
@@ -53,7 +141,7 @@ This toolkit simulates yield curve movements and calculates comprehensive risk m
 **Interpretation:**
 - The curve is nearly flat with a slightly inverted shape in the short end (5.25% at 3M → 4.00% at 5Y)
 - The long end rises slightly (4.00% at 5Y → 4.60% at 30Y)
-- The 2s10s spread is -0.25 bps, indicating a very flat curve
+- The 2s10s spread is -25 bps (4.25% - 4.50%), indicating a very flat curve
 - This shape suggests market expectations of stable or declining interest rates
 
 ---
@@ -492,6 +580,14 @@ for risk in scenario_risks:
 - `price_from_yield(ytm)` - Calculate price from yield to maturity
 - `yield_to_maturity(price)` - Solve for YTM given price
 - `current_yield(price)` - Calculate current yield
+
+### YieldCurve.from_par_yields
+- `YieldCurve.from_par_yields(tenors, par_yields, frequency=2)` - Bootstrap continuously compounded zero rates from par yields (e.g. the Treasury curve). The result reprices every input par bond at exactly 100 under the curve's own interpolation.
+
+### Monetary policy
+- `FedWatch(meetings, futures, target_lower, target_upper, as_of)` - FOMC target-rate probabilities from 30-Day Fed Funds futures (`.outlooks`, `.expected_path()`, `.implied_policy_path()`)
+- `PolicyPath.from_moves(as_of, start_rate, meetings, moves_bps)` - A policy-rate path
+- `CurveDeformer.policy_scenario(scenario, baseline, half_life_years=2.0, term_premium_bps=0)` - Curve shift caused by a policy surprise versus the priced path
 
 ## Examples
 

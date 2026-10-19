@@ -1,0 +1,88 @@
+name: Deploy dashboard
+
+# Fetches fresh market data, builds the dashboard and publishes it to GitHub Pages.
+# Runs on every push to main, hourly on weekdays (06-23 UTC), daily at weekends,
+# and on demand from the Actions tab.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 6-23 * * 1-5'
+    - cron: '17 7 * * 0,6'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install Python toolkit dependencies
+        run: pip install -r requirements.txt
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      # The live site's copy is the baseline: a source that fails keeps its last good value.
+      - name: Fetch market data
+        run: >
+          python scripts/fetch_market_data.py
+          --out web/public/data/market.json
+          --baseline "${{ steps.pages.outputs.base_url }}/data/market.json"
+
+      - name: Export Excel / Power Query feeds
+        run: python scripts/export_excel_feeds.py web/public/data/market.json
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build dashboard
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # GitHub pauses scheduled workflows after 60 days without repository activity;
+  # re-enabling this workflow on each scheduled run keeps the data refresh alive.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh api --method PUT "repos/${{ github.repository }}/actions/workflows/deploy.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
