@@ -38,12 +38,14 @@ jobs:
       - id: pages
         uses: actions/configure-pages@v5
 
-      # The live site's copy is the baseline: a source that fails keeps its last good value.
+      # A source that fails keeps its last good value: from the live site, or on the
+      # very first deployment from the snapshot committed to the repository.
       - name: Fetch market data
         run: >
           python scripts/fetch_market_data.py
           --out web/public/data/market.json
           --baseline "${{ steps.pages.outputs.base_url }}/data/market.json"
+          --baseline web/public/data/market.json
 
       - name: Export Excel / Power Query feeds
         run: python scripts/export_excel_feeds.py web/public/data/market.json

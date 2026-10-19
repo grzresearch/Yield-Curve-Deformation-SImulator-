@@ -15,7 +15,8 @@ dashboard down. Only the standard library is used.
 
 Usage:
     python scripts/fetch_market_data.py --out web/public/data/market.json \\
-        [--baseline https://<user>.github.io/<repo>/data/market.json]
+        [--baseline https://<user>.github.io/<repo>/data/market.json] \\
+        [--baseline web/public/data/market.json]
 """
 
 import argparse
@@ -258,15 +259,25 @@ def fetch_futures(today: date) -> dict:
 
 
 def load_baseline(location: str) -> dict:
-    if not location:
-        return {}
     try:
         if location.startswith("http"):
             return json.loads(http_get(location, retries=2))
         return json.loads(Path(location).read_text())
     except Exception as error:  # noqa: BLE001 - a missing baseline is not fatal
-        print(f"baseline unavailable ({error}); continuing without it", file=sys.stderr)
+        print(f"baseline {location} unavailable ({error})", file=sys.stderr)
         return {}
+
+
+def merge_baselines(locations) -> dict:
+    """Per source, the first baseline that has it wins (live site, then the committed snapshot)."""
+    merged = {"sources": {}}
+    for location in locations:
+        baseline = load_baseline(location)
+        for key in SOURCES:
+            if key in baseline and key not in merged:
+                merged[key] = baseline[key]
+                merged["sources"][key] = baseline.get("sources", {}).get(key, {})
+    return merged
 
 
 SOURCES = {
@@ -281,12 +292,15 @@ SOURCES = {
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--baseline", default="", help="URL or path of the previous market.json")
+    parser.add_argument(
+        "--baseline", action="append", default=[],
+        help="URL or path of a previous market.json; repeatable, earlier ones take precedence",
+    )
     args = parser.parse_args()
 
     now = datetime.now(timezone.utc)
     today = now.date()
-    baseline = load_baseline(args.baseline)
+    baseline = merge_baselines(args.baseline)
     result = {"schema": SCHEMA_VERSION, "generatedAt": now.isoformat(timespec="seconds"), "sources": {}}
 
     for key, (provider, url, fetch) in SOURCES.items():
