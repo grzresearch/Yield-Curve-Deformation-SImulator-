@@ -3,7 +3,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
-sys.path.insert(0, '..')
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from yield_curve import YieldCurve, CurveDeformer, RiskCalculator, Bond
 from yield_curve.bond import BondPortfolio
